@@ -1,0 +1,35 @@
+{
+  "name": "priority-mcp",
+  "version": "0.1.0",
+  "description": "Unofficial Priority ERP MCP server: typed, safe access to Priority OData data for MCP-compatible agents over stdio.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "priority-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "pack-verify": "npm pack --dry-run 2>&1 | grep -E \"dist/|README|LICENSE\" | head -28"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
