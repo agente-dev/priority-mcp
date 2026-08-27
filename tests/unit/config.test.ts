@@ -3,8 +3,7 @@ import type { Config, ConfigError, ConfigResult } from "../../src/config.js";
 import { loadConfig } from "../../src/config.js";
 
 const VALID_ENV = {
-  PRIORITY_API_URL: "https://example.com/odata/Priority/tabula.ini,3/wlnd/demodata",
-  PRIORITY_ENVIRONMENT: "wlnd",
+  PRIORITY_API_URL: "https://example.com/odata/Priority",
   PRIORITY_COMPANY: "demodata",
   PRIORITY_USERNAME: "apidemo",
   PRIORITY_PASSWORD: "secret",
@@ -27,8 +26,7 @@ function expectErrors(result: ConfigResult): ConfigError[] {
 describe("loadConfig", () => {
   it("accepts a valid environment with defaults", () => {
     const config = expectConfig(loadConfig({ ...VALID_ENV }));
-    expect(config.apiUrl).toBe(VALID_ENV.PRIORITY_API_URL);
-    expect(config.environment).toBe("wlnd");
+    expect(config.apiUrl).toBe("https://example.com/odata/Priority");
     expect(config.company).toBe("demodata");
     expect(config.username).toBe("apidemo");
     expect(config.password).toBe("secret");
@@ -52,6 +50,58 @@ describe("loadConfig", () => {
   it("respects an explicit PRIORITY_LANGUAGE", () => {
     const config = expectConfig(loadConfig({ ...VALID_ENV, PRIORITY_LANGUAGE: "1" }));
     expect(config.language).toBe("1");
+  });
+
+  it("derives serviceRoot as {apiUrl}/{ini},{lang}/{company}", () => {
+    const config = expectConfig(
+      loadConfig({
+        ...VALID_ENV,
+        PRIORITY_TABULA_INI: "tabbtd38.ini",
+        PRIORITY_LANGUAGE: "3",
+      }),
+    );
+    expect(config.serviceRoot).toBe("https://example.com/odata/Priority/tabbtd38.ini,3/demodata");
+  });
+
+  it("decomposes the verified sandbox (deviation example)", () => {
+    // API_URL=https://t.eu.priority-connect.online/odata/Priority,
+    // TABULA_INI=tabbtd38.ini, COMPANY=usdemo, LANG=3 (docs/priority-api-verified.md)
+    const config = expectConfig(
+      loadConfig({
+        PRIORITY_API_URL: "https://t.eu.priority-connect.online/odata/Priority",
+        PRIORITY_TABULA_INI: "tabbtd38.ini",
+        PRIORITY_COMPANY: "usdemo",
+        PRIORITY_LANGUAGE: "3",
+        PRIORITY_USERNAME: "apidemo",
+        PRIORITY_PASSWORD: "123",
+      }),
+    );
+    expect(config.serviceRoot).toBe(
+      "https://t.eu.priority-connect.online/odata/Priority/tabbtd38.ini,3/usdemo",
+    );
+  });
+
+  it("accepts path-prefixed installs (ui/odata/Priority) and trims trailing slashes", () => {
+    const config = expectConfig(
+      loadConfig({
+        ...VALID_ENV,
+        PRIORITY_API_URL: "https://host.example/ui/odata/Priority/",
+      }),
+    );
+    expect(config.apiUrl).toBe("https://host.example/ui/odata/Priority");
+    expect(config.serviceRoot).toBe("https://host.example/ui/odata/Priority/tabula.ini,3/demodata");
+  });
+
+  it("defaults PRIORITY_ENVIRONMENT to the company value (label only)", () => {
+    const config = expectConfig(loadConfig({ ...VALID_ENV }));
+    expect(config.environment).toBe("demodata");
+  });
+
+  it("respects an explicit PRIORITY_ENVIRONMENT (label only, never a URL segment)", () => {
+    const config = expectConfig(loadConfig({ ...VALID_ENV, PRIORITY_ENVIRONMENT: "wlnd" }));
+    expect(config.environment).toBe("wlnd");
+    // The environment label must not appear in the service root URL.
+    expect(config.serviceRoot).not.toContain("wlnd");
   });
 
   it("defaults PRIORITY_READ_ONLY to true", () => {
@@ -143,9 +193,22 @@ describe("loadConfig", () => {
     expect(errors.map((e) => e.field)).toContain("PRIORITY_API_URL");
   });
 
+  it("rejects a PRIORITY_API_URL that does not end in /odata/Priority", () => {
+    for (const bad of [
+      "https://example.com",
+      "https://example.com/odata",
+      "https://example.com/odata/AuthService",
+      "https://example.com/odata/PriorityExtra",
+      "https://example.com/odata/Priority/tabbtd38.ini,3/usdemo", // root already includes the tenant path — forbidden
+    ]) {
+      const errors = expectErrors(loadConfig({ ...VALID_ENV, PRIORITY_API_URL: bad }));
+      expect(errors.map((e) => e.field)).toContain("PRIORITY_API_URL");
+    }
+  });
+
   it("rejects a non-https PRIORITY_API_URL", () => {
     const errors = expectErrors(
-      loadConfig({ ...VALID_ENV, PRIORITY_API_URL: "http://insecure.example.com/odata" }),
+      loadConfig({ ...VALID_ENV, PRIORITY_API_URL: "http://insecure.example.com/odata/Priority" }),
     );
     expect(errors.map((e) => e.field)).toContain("PRIORITY_API_URL");
   });
@@ -160,7 +223,6 @@ describe("loadConfig", () => {
     expect(errors.map((e) => e.field).sort()).toEqual([
       "PRIORITY_API_URL",
       "PRIORITY_COMPANY",
-      "PRIORITY_ENVIRONMENT",
       "PRIORITY_PASSWORD",
       "PRIORITY_USERNAME",
     ]);
@@ -170,7 +232,6 @@ describe("loadConfig", () => {
     const errors = expectErrors(
       loadConfig({
         PRIORITY_API_URL: "http://insecure",
-        PRIORITY_ENVIRONMENT: "x",
         PRIORITY_COMPANY: "x",
       }),
     );

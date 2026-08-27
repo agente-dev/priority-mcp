@@ -6,6 +6,18 @@
  * `Config` or a list of field-level `ConfigError`s, so a boot with invalid
  * config can print every problem at once and exit 1.
  *
+ * URL contract (train-2 correction, rationale in docs/priority-api-verified.md):
+ * installs vary in URL shape — the sandbox is `{host}/odata/Priority/...`
+ * while some installs carry a path prefix (`{host}/ui/odata/Priority/...`).
+ * ONE env var owns the whole prefix: `PRIORITY_API_URL` must be an https URL
+ * ending in `/odata/Priority` (after trailing-slash trim; validation error
+ * otherwise). The service root is derived:
+ * `serviceRoot = {API_URL}/{INI},{LANG}/{COMPANY}`.
+ *
+ * `PRIORITY_ENVIRONMENT` is an OPTIONAL metadata label (defaults to the
+ * company value) used for cache namespacing and logs only — it is NEVER a
+ * URL segment.
+ *
  * Safety note: error messages echo field NAMES only, never values — password
  * and app-key secrets must never leak into logs or back to an agent.
  */
@@ -13,9 +25,15 @@
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface Config {
-  /** Priority OData base URL. Must be an https URL. Never logged as validated output. */
+  /**
+   * Priority OData base URL. https, ends with `/odata/Priority` (trailing
+   * slashes trimmed). Never logged as validated output.
+   */
   apiUrl: string;
-  /** Priority environment name. */
+  /**
+   * Optional metadata label (defaults to the company value). Cache
+   * namespacing and logs only — never a URL segment.
+   */
   environment: string;
   /** Priority company code within the environment. */
   company: string;
@@ -27,6 +45,8 @@ export interface Config {
   tabulaIni: string;
   /** Language code (3 = US English). */
   language: string;
+  /** Derived service root: `{apiUrl}/{tabulaIni},{language}/{company}`. */
+  serviceRoot: string;
   /** Optional per-app license header value `X-App-Id`. */
   appId?: string;
   /** Optional per-app license header value `X-App-Key`. */
@@ -78,10 +98,15 @@ function parsePositiveInt(
   return value;
 }
 
+/** Strip trailing slashes — `https://x/odata/Priority/` → `https://x/odata/Priority`. */
+function trimTrailingSlashes(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
 export function loadConfig(env: EnvSource = process.env): ConfigResult {
   const errors: ConfigError[] = [];
 
-  // --- Required: PRIORITY_API_URL (https) ---
+  // --- Required: PRIORITY_API_URL (https, ends with /odata/Priority) ---
   let apiUrl = "";
   const rawApiUrl = env.PRIORITY_API_URL;
   if (rawApiUrl === undefined || rawApiUrl.trim() === "") {
@@ -96,7 +121,20 @@ export function loadConfig(env: EnvSource = process.env): ConfigResult {
           message: "PRIORITY_API_URL must be an https URL.",
         });
       } else {
-        apiUrl = trimmed;
+        const pathname = trimTrailingSlashes(parsed.pathname);
+        if (!pathname.endsWith("/odata/Priority")) {
+          errors.push({
+            field: "PRIORITY_API_URL",
+            message:
+              "PRIORITY_API_URL must end with /odata/Priority " +
+              "(e.g. https://host/odata/Priority or https://host/ui/odata/Priority); " +
+              "the whole prefix lives in this one variable.",
+          });
+        } else {
+          // Normalize: no trailing slash, no query/hash — the service root
+          // is appended below and must not inherit query strings.
+          apiUrl = trimTrailingSlashes(`${parsed.origin}${parsed.pathname}`);
+        }
       }
     } catch {
       errors.push({
@@ -107,12 +145,7 @@ export function loadConfig(env: EnvSource = process.env): ConfigResult {
   }
 
   // --- Required strings ---
-  const requiredFields = [
-    "PRIORITY_ENVIRONMENT",
-    "PRIORITY_COMPANY",
-    "PRIORITY_USERNAME",
-    "PRIORITY_PASSWORD",
-  ] as const;
+  const requiredFields = ["PRIORITY_COMPANY", "PRIORITY_USERNAME", "PRIORITY_PASSWORD"] as const;
   for (const field of requiredFields) {
     const raw = env[field];
     if (raw === undefined || raw.trim() === "") {
@@ -123,6 +156,13 @@ export function loadConfig(env: EnvSource = process.env): ConfigResult {
   // --- Optional with defaults ---
   const tabulaIni = env.PRIORITY_TABULA_INI?.trim() || "tabula.ini";
   const language = env.PRIORITY_LANGUAGE?.trim() || "3";
+
+  // PRIORITY_ENVIRONMENT is an optional label (default: company value). It is
+  // used for cache namespacing and logs only — never a URL segment.
+  const rawEnvironment = env.PRIORITY_ENVIRONMENT?.trim();
+  const company = env.PRIORITY_COMPANY ?? "";
+  const environment =
+    rawEnvironment === undefined || rawEnvironment === "" ? company : rawEnvironment;
 
   // PRIORITY_READ_ONLY defaults to true — writes gated off until explicit opt-in.
   let readOnly = true;
@@ -185,12 +225,13 @@ export function loadConfig(env: EnvSource = process.env): ConfigResult {
     ok: true,
     config: {
       apiUrl,
-      environment: env.PRIORITY_ENVIRONMENT as string,
-      company: env.PRIORITY_COMPANY as string,
+      environment,
+      company,
       username: env.PRIORITY_USERNAME as string,
       password: env.PRIORITY_PASSWORD as string,
       tabulaIni,
       language,
+      serviceRoot: `${apiUrl}/${tabulaIni},${language}/${company}`,
       appId,
       appKey,
       readOnly,
