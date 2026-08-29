@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "mcpName": "io.github.agente-dev/priority-mcp",
+  "version": "0.1.0",
+  "description": "Unofficial Priority ERP MCP server: metadata-validated read/write access to the Priority OData REST API for MCP-compatible agents. Write tools are gated behind PRIORITY_READ_ONLY=false with dry-run default; verified against a Priority 25.0 sandbox.",
+  "remotes": [
+    {
+      "transportType": "http",
+      "url": "https://TODO-replace-before-remote-deployment.example.invalid/mcp",
+      "headers": []
+    }
+  ],
+  "_remote_note": "Placeholder only — priority-mcp v0.1 ships as a local stdio server (npx priority-mcp) and has no hosted remote. This remote entry must be replaced or removed before any registry submission; MCP Registry listing requires a published npm package, which has not happened yet."
+}

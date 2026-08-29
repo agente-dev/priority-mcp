@@ -6,7 +6,7 @@ import type { ReadToolContext } from "../../src/tools/context.js";
 import { getRecord } from "../../src/tools/get.js";
 import { getServerInfo } from "../../src/tools/info.js";
 import { queryRecords } from "../../src/tools/query.js";
-import { createRecord, deleteRecord } from "../../src/tools/write.js";
+import { createRecord, deleteRecord, updateRecord } from "../../src/tools/write.js";
 
 // Live sandbox integration — skips cleanly when creds absent.
 // Sandbox coordinates: docs/priority-api-verified.md
@@ -152,5 +152,38 @@ describe.skipIf(liveConfig === undefined)("live sandbox write tools", () => {
         dryRun: false,
       }),
     ).rejects.toThrow(/unknown field "NOT_A_FIELD"/);
+  });
+
+  it("g) update_record live: create→UPDATE→verify→delete round-trip", {
+    timeout: 120_000,
+  }, async () => {
+    const c = buildContext();
+    const key = { FAMILYNAME: `ZZU${Math.floor(Math.random() * 9000 + 1000)}` };
+    try {
+      const created = (await createRecord(c, {
+        entity: "FAMILY_LOG",
+        fields: { ...key, FAMILYDESC: "before update" },
+        dryRun: false,
+      })) as { created: boolean; verified: boolean };
+      expect(created.created && created.verified).toBe(true);
+
+      const updated = (await updateRecord(c, {
+        entity: "FAMILY_LOG",
+        key,
+        fields: { FAMILYDESC: "after update" },
+        dryRun: false,
+      })) as { updated: boolean; verified: boolean; refetched?: { FAMILYDESC?: string } };
+      expect(updated.updated).toBe(true);
+      expect(updated.verified).toBe(true);
+      expect(updated.refetched?.FAMILYDESC).toBe("after update");
+    } finally {
+      const gone = (await deleteRecord(c, {
+        entity: "FAMILY_LOG",
+        key,
+        confirm: true,
+        dryRun: false,
+      })) as { deleted: boolean; verified: boolean };
+      expect(gone.deleted && gone.verified).toBe(true);
+    }
   });
 });

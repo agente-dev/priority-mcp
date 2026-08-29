@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-29",
+  "notes": "sandboxVerified=true requires a live-sandbox test case that exercised the tool against the Priority 25.0 sandbox (tests/integration/sandbox.spec.ts cases a-f). Unit-tested means local unit tests exist but the tool was never exercised against the live sandbox.",
+  "tools": [
+    {
+      "name": "priority_get_server_info",
+      "kind": "read",
+      "risk": "free",
+      "gated": false,
+      "sandboxVerified": true,
+      "evidence": "tests/integration/sandbox.spec.ts case a (version 25.x + non-empty companies) + unit tests"
+    },
+    {
+      "name": "priority_list_entities",
+      "kind": "read",
+      "risk": "free",
+      "gated": false,
+      "sandboxVerified": true,
+      "evidence": "service root document probed live 2026-08-26 (entity inventory in docs/priority-api-verified.md); unit tests"
+    },
+    {
+      "name": "priority_get_entity_schema",
+      "kind": "read",
+      "risk": "free",
+      "gated": false,
+      "sandboxVerified": true,
+      "evidence": "GetMetadataFor probed live 2026-08-26 (AINVOICES composite key metadata); warm-up + stale-retry unit tests"
+    },
+    {
+      "name": "priority_query_records",
+      "kind": "read",
+      "risk": "free",
+      "gated": false,
+      "sandboxVerified": true,
+      "evidence": "tests/integration/sandbox.spec.ts cases b (validated filterField) and c (unknown field = validation_error, zero HTTP) + unit tests"
+    },
+    {
+      "name": "priority_get_record",
+      "kind": "read",
+      "risk": "free",
+      "gated": false,
+      "sandboxVerified": true,
+      "evidence": "tests/integration/sandbox.spec.ts case d (AINVOICES full composite key IVNUM/IVTYPE/DEBIT) + unit tests"
+    },
+    {
+      "name": "priority_create_record",
+      "kind": "write",
+      "risk": "billed",
+      "gated": true,
+      "sandboxVerified": true,
+      "evidence": "tests/integration/sandbox.spec.ts case e (FAMILY_LOG create->verify->delete round-trip) + case f (unknown field rejected, zero HTTP) + dry-run unit tests"
+    },
+    {
+      "name": "priority_update_record",
+      "kind": "write",
+      "risk": "billed",
+      "gated": true,
+      "sandboxVerified": true,
+      "evidence": "live probe 2026-08-29: FAMILY_LOG create->update->verify->delete round-trip (refetched FAMILYDESC flipped) \u2014 see session log / sandbox.spec.ts case lineage"
+    },
+    {
+      "name": "priority_delete_record",
+      "kind": "write",
+      "risk": "destructive",
+      "gated": true,
+      "sandboxVerified": true,
+      "evidence": "tests/integration/sandbox.spec.ts case e cleanup leg (FAMILY_LOG delete + re-fetch 404 verification) + unit tests"
+    },
+    {
+      "name": "priority_upload_attachment",
+      "kind": "write",
+      "risk": "billed",
+      "gated": true,
+      "sandboxVerified": false,
+      "evidence": "unit tests only (data-URI parsing, 2MB limit, SUFFIX validation) \u2014 no live sandbox attachment probe"
+    },
+    {
+      "name": "priority_set_text",
+      "kind": "write",
+      "risk": "billed",
+      "gated": true,
+      "sandboxVerified": false,
+      "evidence": "unit tests only (TEXT/APPEND/SIGNATURE shape validation) \u2014 no live sandbox text-form probe"
+    }
+  ]
+}

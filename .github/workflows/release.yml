@@ -1,0 +1,56 @@
+# npm release via OIDC trusted publishing.
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ INERT UNTIL LINKED: this workflow does nothing until a human performs the   │
+# │ one-time link of the package on npmjs.com (npm settings → Trusted           │
+# │ Publisher → point at this repo + workflow file). Until then, publishing     │
+# │ fails by design. Once linked, pushing a tag `v*` publishes with provenance. │
+# │ DO NOT REMOVE this block.                                                   │
+# └─────────────────────────────────────────────────────────────────────────────┘
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # OIDC trusted publishing — no NPM_TOKEN secret required
+
+jobs:
+  publish:
+    name: Publish to npm (trusted publishing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify gate chain before publish
+        run: npm run lint && npm run typecheck && npm test && npm run build
+
+      - name: Check tag matches package.json version
+        run: |
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME}" != "${PKG_VERSION}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} != package.json version ${PKG_VERSION}"
+            exit 1
+          fi
+
+      - name: Publish with provenance
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
