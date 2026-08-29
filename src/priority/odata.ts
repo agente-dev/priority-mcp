@@ -178,6 +178,7 @@ export interface ExpandSpec {
  */
 export class ODataBuilder {
   private filterNode: FilterNode | undefined;
+  private rawFilterValue: string | undefined;
   private topValue: number | undefined;
   private skipValue: number | undefined;
   private selectList: string[] | undefined;
@@ -199,7 +200,29 @@ export class ODataBuilder {
   }
 
   filter(node: FilterNode): this {
+    if (this.rawFilterValue !== undefined) {
+      throw new ODataError("cannot combine filter() and rawFilter() on one query");
+    }
     this.filterNode = node;
+    return this;
+  }
+
+  /**
+   * Set the `$filter` clause from a raw OData expression string (escape
+   * hatch for expressions the node composer cannot express). Mutually
+   * exclusive with `filter()`. The caller is responsible for validating the
+   * expression's field names against entity metadata BEFORE calling this —
+   * the vendor silently ignores unknown filter fields (HTTP 200 +
+   * unfiltered rows), so the guard lives at the tool boundary.
+   */
+  rawFilter(expression: string): this {
+    if (this.filterNode !== undefined) {
+      throw new ODataError("cannot combine filter() and rawFilter() on one query");
+    }
+    if (typeof expression !== "string" || expression.trim() === "") {
+      throw new ODataError("a raw $filter expression must be a non-empty string");
+    }
+    this.rawFilterValue = expression;
     return this;
   }
 
@@ -263,6 +286,8 @@ export class ODataBuilder {
     if (this.skipValue !== undefined) params.push(`$skip=${this.skipValue}`);
     if (this.filterNode !== undefined) {
       params.push(`$filter=${encodeODataValue(renderFilter(this.filterNode))}`);
+    } else if (this.rawFilterValue !== undefined) {
+      params.push(`$filter=${encodeODataValue(this.rawFilterValue)}`);
     }
     if (this.selectList !== undefined && this.selectList.length > 0) {
       params.push(`$select=${encodeODataValue(this.selectList.join(","))}`);
