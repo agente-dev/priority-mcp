@@ -56,8 +56,8 @@
       "kind": "write",
       "risk": "billed",
       "gated": true,
-      "sandboxVerified": false,
-      "evidence": "unit tests only (dry-run, key validation, post-write verification logic) — no live sandbox update probe"
+      "sandboxVerified": true,
+      "evidence": "live probe 2026-08-29: FAMILY_LOG create->update->verify->delete round-trip (refetched FAMILYDESC flipped) \u2014 see session log / sandbox.spec.ts case lineage"
     },
     {
       "name": "priority_delete_record",
@@ -73,7 +73,7 @@
       "risk": "billed",
       "gated": true,
       "sandboxVerified": false,
-      "evidence": "unit tests only (data-URI parsing, 2MB limit, SUFFIX validation) — no live sandbox attachment probe"
+      "evidence": "unit tests only (data-URI parsing, 2MB limit, SUFFIX validation) \u2014 no live sandbox attachment probe"
     },
     {
       "name": "priority_set_text",
@@ -81,7 +81,7 @@
       "risk": "billed",
       "gated": true,
       "sandboxVerified": false,
-      "evidence": "unit tests only (TEXT/APPEND/SIGNATURE shape validation) — no live sandbox text-form probe"
+      "evidence": "unit tests only (TEXT/APPEND/SIGNATURE shape validation) \u2014 no live sandbox text-form probe"
     }
   ]
 }
