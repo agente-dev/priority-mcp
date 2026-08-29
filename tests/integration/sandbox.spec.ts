@@ -6,6 +6,7 @@ import type { ReadToolContext } from "../../src/tools/context.js";
 import { getRecord } from "../../src/tools/get.js";
 import { getServerInfo } from "../../src/tools/info.js";
 import { queryRecords } from "../../src/tools/query.js";
+import { createRecord, deleteRecord } from "../../src/tools/write.js";
 
 // Live sandbox integration — skips cleanly when creds absent.
 // Sandbox coordinates: docs/priority-api-verified.md
@@ -101,5 +102,55 @@ describe.skipIf(liveConfig === undefined)("live sandbox read tools", () => {
     expect(record.IVNUM).toBe(inv.IVNUM);
     expect(record.DEBIT).toBe(inv.DEBIT);
     expect(record.IVTYPE).toBe(inv.IVTYPE);
+  });
+});
+
+describe.skipIf(liveConfig === undefined)("live sandbox write tools", () => {
+  it("e) FAMILY_LOG create→verify→delete round-trip (central claim)", {
+    timeout: 120_000,
+  }, async () => {
+    const c = buildContext();
+    const key = { FAMILYNAME: `ZZT${Math.floor(Math.random() * 9000 + 1000)}` };
+    try {
+      // dryRun first — zero HTTP for the preview
+      const preview = (await createRecord(c, {
+        entity: "FAMILY_LOG",
+        fields: { ...key, FAMILYDESC: "train4 probe" },
+      })) as { dryRun: boolean };
+      expect(preview.dryRun).toBe(true);
+
+      // real create
+      const created = (await createRecord(c, {
+        entity: "FAMILY_LOG",
+        fields: { ...key, FAMILYDESC: "train4 probe" },
+        dryRun: false,
+      })) as { created: boolean; verified: boolean; key: Record<string, string> };
+      expect(created.created).toBe(true);
+      expect(created.verified).toBe(true);
+      expect(created.key.FAMILYNAME).toBe(key.FAMILYNAME);
+    } finally {
+      // cleanup even on assertion failure — writes bill vendor transactions
+      const gone = (await deleteRecord(c, {
+        entity: "FAMILY_LOG",
+        key,
+        confirm: true,
+        dryRun: false,
+      })) as { deleted: boolean; verified: boolean };
+      expect(gone.deleted).toBe(true);
+      expect(gone.verified).toBe(true); // re-fetch 404 after delete
+    }
+  });
+
+  it("f) create with unknown field → typed validation_error, ZERO HTTP (writes get the same guard as reads)", {
+    timeout: 60_000,
+  }, async () => {
+    const c = buildContext();
+    await expect(
+      createRecord(c, {
+        entity: "FAMILY_LOG",
+        fields: { FAMILYNAME: "ZZNOPE", NOT_A_FIELD: "x" },
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/unknown field "NOT_A_FIELD"/);
   });
 });

@@ -14,3 +14,22 @@ export const READ_ANNOTATIONS: ToolAnnotations = {
   destructiveHint: false,
   openWorldHint: true,
 };
+
+/**
+ * Write tools (train 4). The vendor offers NO idempotency mechanism and every
+ * written record bills an API transaction — so idempotentHint stays FALSE and
+ * destructiveHint FALSE except for delete.
+ */
+export const WRITE_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  destructiveHint: false,
+  openWorldHint: true,
+};
+
+export const DELETE_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  destructiveHint: true,
+  openWorldHint: true,
+};
