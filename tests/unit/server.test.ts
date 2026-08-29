@@ -67,3 +67,42 @@ describe("registerReadTools", () => {
     );
   });
 });
+
+describe("registerWriteTools — gating by omission", () => {
+  it("registers ZERO write tools while readOnly=true (absent from tools/list)", () => {
+    const server = createServer(CONFIG); // CONFIG.readOnly === true
+    const tools = registeredTools(server);
+    const writeNames = Object.keys(tools).filter((name) =>
+      [
+        "priority_create_record",
+        "priority_update_record",
+        "priority_delete_record",
+        "priority_upload_attachment",
+        "priority_set_text",
+      ].includes(name),
+    );
+    expect(writeNames).toEqual([]);
+  });
+
+  it("registers all five write tools with honest annotations when readOnly=false", () => {
+    const server = createServer({ ...CONFIG, readOnly: false });
+    const tools = registeredTools(server);
+    for (const name of [
+      "priority_create_record",
+      "priority_update_record",
+      "priority_upload_attachment",
+      "priority_set_text",
+    ]) {
+      expect(tools[name], name).toBeDefined();
+      const annotations = (
+        tools[name] as { annotations?: { readOnlyHint?: boolean; idempotentHint?: boolean } }
+      ).annotations;
+      expect(annotations?.readOnlyHint).toBe(false);
+      expect(annotations?.idempotentHint).toBe(false); // vendor has no idempotency
+    }
+    const del = tools["priority_delete_record"] as {
+      annotations?: { destructiveHint?: boolean };
+    };
+    expect(del?.annotations?.destructiveHint).toBe(true);
+  });
+});
